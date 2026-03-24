@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LES Live Stream</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      position: relative;
+    }
+
+    #playerWrap {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #000;
+    }
+
+    #status {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 5;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.6);
+      color: rgba(255,255,255,0.9);
+      font-size: 14px;
+      line-height: 1;
+      user-select: none;
+      transition: opacity 0.3s ease;
+    }
+
+    #status.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #admin {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+      width: min(420px, calc(100vw - 32px));
+      background: rgba(0,0,0,0.82);
+      color: #fff;
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      backdrop-filter: blur(8px);
+      display: none;
+    }
+
+    #admin.show {
+      display: block;
+    }
+
+    #admin h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    #admin p {
+      margin: 0 0 12px;
+      color: rgba(255,255,255,0.75);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    #admin label {
+      display: block;
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    #videoInput {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      outline: none;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #fff;
+      color: #000;
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="playerWrap">
+    <iframe
+      id="player"
+      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+      allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin">
+    </iframe>
+  </div>
+
+  <div id="status">Loading stream...</div>
+
+  <div id="admin">
+    <h2>Quick Stream Change</h2>
+    <p>Paste a YouTube video ID or any normal YouTube link here, then click Update Stream. This saves in your browser for quick testing, but the most foolproof permanent method is still changing the <strong>VIDEO_ID</strong> line in the file and republishing.</p>
+    <label for="videoInput">Video ID or YouTube link</label>
+    <input id="videoInput" type="text" placeholder="MEvJ0NC83rs or https://youtube.com/live/..." />
+    <div class="buttons">
+      <button id="updateBtn">Update Stream</button>
+      <button id="reloadBtn" class="secondary">Reload</button>
+      <button id="closeBtn" class="secondary">Close</button>
+    </div>
+  </div>
+
+  <script>
+    /*
+      ============================================================
+      LES LIVE STREAM CONFIG
+      ============================================================
+      TO CHANGE THE STREAM FAST:
+      1. Find the line below that says VIDEO_ID
+      2. Replace the old ID with the new one
+      3. Commit the file to GitHub
+      4. Refresh the website
+
+      Example:
+      const VIDEO_ID = 'MEvJ0NC83rs';
+      ============================================================
+    */
+
+    const VIDEO_ID = 'MEvJ0NC83rs';
+
+    const HIDE_STATUS_AFTER_SECONDS = 5;
+    const AUTO_RELOAD_EVERY_MINUTES = 0;
+
+    const player = document.getElementById('player');
+    const statusBox = document.getElementById('status');
+    const admin = document.getElementById('admin');
+    const videoInput = document.getElementById('videoInput');
+    const updateBtn = document.getElementById('updateBtn');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const closeBtn = document.getElementById('closeBtn');
+
+    function extractYouTubeId(input) {
+      if (!input) return '';
+      const cleaned = input.trim();
+
+      if (/^[a-zA-Z0-9_-]{11}$/.test(cleaned)) return cleaned;
+
+      try {
+        const url = new URL(cleaned);
+        const host = url.hostname.replace(/^www\./, '');
+
+        if (host === 'youtu.be') {
+          return url.pathname.replace('/', '').slice(0, 11);
+        }
+
+        if (host === 'youtube.com' || host === 'm.youtube.com') {
+          if (url.pathname === '/watch') {
+            return (url.searchParams.get('v') || '').slice(0, 11);
+          }
+          if (url.pathname.startsWith('/live/')) {
+            return url.pathname.split('/live/')[1].split('/')[0].slice(0, 11);
+          }
+          if (url.pathname.startsWith('/embed/')) {
+            return url.pathname.split('/embed/')[1].split('/')[0].slice(0, 11);
+          }
+          if (url.pathname.startsWith('/shorts/')) {
+            return url.pathname.split('/shorts/')[1].split('/')[0].slice(0, 11);
+          }
+        }
+      } catch (error) {}
+
+      return '';
+    }
+
+    function buildEmbedUrl(videoId) {
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+    }
+
+    function setStatus(message, autoHide = true) {
+      statusBox.textContent = message;
+      statusBox.classList.remove('hide');
+      if (autoHide) {
+        clearTimeout(window.__statusTimer);
+        window.__statusTimer = setTimeout(() => {
+          statusBox.classList.add('hide');
+        }, HIDE_STATUS_AFTER_SECONDS * 1000);
+      }
+    }
+
+    function getCurrentVideoId() {
+      const fromUrl = extractYouTubeId(new URLSearchParams(window.location.search).get('video'));
+      const fromStorage = extractYouTubeId(localStorage.getItem('lesLiveVideoId'));
+      return fromUrl || fromStorage || VIDEO_ID;
+    }
+
+    function loadVideo(videoId) {
+      const validId = extractYouTubeId(videoId);
+      if (!validId) {
+        setStatus('Invalid YouTube ID or link', false);
+        return;
+      }
+
+      player.src = buildEmbedUrl(validId);
+      document.title = 'LES Live Stream';
+      setStatus(`Now showing: ${validId}`);
+      videoInput.value = validId;
+    }
+
+    function updateVideoFromInput() {
+      const newId = extractYouTubeId(videoInput.value);
+      if (!newId) {
+        setStatus('Paste a valid YouTube link or 11-character video ID', false);
+        return;
+      }
+
+      localStorage.setItem('lesLiveVideoId', newId);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('video');
+      window.history.replaceState({}, '', url.toString());
+      loadVideo(newId);
+    }
+
+    function openAdmin() {
+      admin.classList.add('show');
+      videoInput.focus();
+      videoInput.select();
+    }
+
+    function closeAdmin() {
+      admin.classList.remove('show');
+    }
+
+    updateBtn.addEventListener('click', updateVideoFromInput);
+    reloadBtn.addEventListener('click', () => loadVideo(getCurrentVideoId()));
+    closeBtn.addEventListener('click', closeAdmin);
+
+    videoInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') updateVideoFromInput();
+      if (event.key === 'Escape') closeAdmin();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'u') {
+        event.preventDefault();
+        admin.classList.contains('show') ? closeAdmin() : openAdmin();
+      }
+      if (event.key === 'Escape' && admin.classList.contains('show')) {
+        closeAdmin();
+      }
+    });
+
+    loadVideo(getCurrentVideoId());
+
+    if (AUTO_RELOAD_EVERY_MINUTES > 0) {
+      setInterval(() => {
+        loadVideo(getCurrentVideoId());
+      }, AUTO_RELOAD_EVERY_MINUTES * 60 * 1000);
+    }
+  </script>
+</body>
+</html>
