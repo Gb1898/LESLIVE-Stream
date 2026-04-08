@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LES Live Stream</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    iframe {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #000;
+    }
+
+    #status {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.6);
+      color: rgba(255,255,255,0.9);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: 0.2px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <iframe id="player" allow="autoplay; fullscreen" allowfullscreen></iframe>
+  <div id="status">Loading…</div>
+
+  <script>
+    const player = document.getElementById("player");
+    const statusEl = document.getElementById("status");
+    let currentVideoId = "";
+
+    function extractID(input) {
+      if (!input) return "";
+      const value = String(input).trim();
+
+      if (/^[a-zA-Z0-9_-]{11}$/.test(value)) return value;
+
+      try {
+        const url = new URL(value);
+
+        if (url.searchParams.get("v")) {
+          return url.searchParams.get("v").slice(0, 11);
+        }
+
+        if (url.hostname.includes("youtu.be")) {
+          return url.pathname.replace("/", "").slice(0, 11);
+        }
+
+        if (url.pathname.includes("/live/")) {
+          return url.pathname.split("/live/")[1].split("/")[0].slice(0, 11);
+        }
+
+        if (url.pathname.includes("/embed/")) {
+          return url.pathname.split("/embed/")[1].split("/")[0].slice(0, 11);
+        }
+      } catch (e) {}
+
+      return "";
+    }
+
+    function embedURL(videoId) {
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
+    }
+
+    function setVideo(videoId) {
+      if (!videoId || videoId === currentVideoId) return;
+      currentVideoId = videoId;
+      player.src = embedURL(videoId);
+    }
+
+    async function loadVideo() {
+      try {
+        const response = await fetch("../data/leslive.json?t=" + Date.now(), {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not load leslive.json");
+        }
+
+        const data = await response.json();
+        const videoId = extractID(data.videoId);
+
+        if (!videoId) {
+          throw new Error("Invalid or missing videoId in leslive.json");
+        }
+
+        setVideo(videoId);
+        statusEl.style.display = "none";
+      } catch (error) {
+        console.error(error);
+        statusEl.style.display = "block";
+        statusEl.textContent = "Could not load stream data";
+      }
+    }
+
+    loadVideo();
+    setInterval(loadVideo, 5000);
+  </script>
+</body>
+</html>
