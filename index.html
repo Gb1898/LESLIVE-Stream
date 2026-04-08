@@ -1,16 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LES Live Stream</title>
   <style>
     html, body {
       margin: 0;
       height: 100%;
-      background: #000;
+      background: black;
       overflow: hidden;
-      font-family: Arial, sans-serif;
     }
 
     iframe {
@@ -19,173 +17,46 @@
       width: 100%;
       height: 100%;
       border: 0;
-      background: #000;
-    }
-
-    #admin {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      width: 340px;
-      background: rgba(0,0,0,0.9);
-      color: white;
-      padding: 16px;
-      border-radius: 14px;
-      display: none;
-      z-index: 10;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    }
-
-    #admin.show {
-      display: block;
-    }
-
-    #admin h3 {
-      margin: 0 0 10px;
-    }
-
-    #admin p {
-      margin: 0 0 12px;
-      font-size: 14px;
-      color: rgba(255,255,255,0.8);
-      line-height: 1.4;
-    }
-
-    input {
-      width: 100%;
-      padding: 10px 12px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      border: none;
-      box-sizing: border-box;
-    }
-
-    .buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    button {
-      padding: 10px 12px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
     }
   </style>
 </head>
 <body>
 
-  <iframe id="player" allow="autoplay; fullscreen" allowfullscreen></iframe>
+<iframe id="player" allow="autoplay; fullscreen"></iframe>
 
-  <div id="admin">
-    <h3>Admin Panel</h3>
-    <p>Press Ctrl + Shift + U to open this panel. Enter the password, paste a YouTube link or video ID, then click Update Stream.</p>
-    <input id="password" type="password" placeholder="Enter password" />
-    <input id="videoInput" type="text" placeholder="Paste YouTube link or 11-character video ID" />
-    <div class="buttons">
-      <button id="update">Update Stream</button>
-      <button id="close">Close</button>
-    </div>
-  </div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+const firebaseConfig = {
+  apiKey: "AIzaSyBcHWGBSNu9LJUHhbahQqKDpNZYSufza90",
+  authDomain: "les-live.firebaseapp.com",
+  databaseURL: "https://les-live-default-rtdb.firebaseio.com",
+  projectId: "les-live",
+  appId: "1:76711441074:web:7ab3de7e6e0b905ed94fab"
+};
 
-    // CHANGE THIS PASSWORD
-    const ADMIN_PASSWORD = "Les2025";
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-    // PASTE YOUR FIREBASE CONFIG HERE
-    const firebaseConfig = {
-      apiKey: "AIzaSyBcHWGBSNu9LJUHhbahQqKDpNZYSufza90",
-      authDomain: "les-live.firebaseapp.com",
-      databaseURL: "https://les-live-default-rtdb.firebaseio.com",
-      projectId: "les-live",
-      appId: "1:76711441074:web:7ab3de7e6e0b905ed94fab"
-    };
+const player = document.getElementById("player");
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+function embedURL(id) {
+  return `https://www.youtube.com/embed/${id}?autoplay=1&controls=0`;
+}
 
-    const player = document.getElementById("player");
-    const admin = document.getElementById("admin");
-    const passwordInput = document.getElementById("password");
-    const videoInput = document.getElementById("videoInput");
-    const updateBtn = document.getElementById("update");
-    const closeBtn = document.getElementById("close");
+onValue(ref(db, "sites/leslive-stream"), (snap) => {
+  const data = snap.val() || {};
 
-    function extractID(input) {
-      if (!input) return "";
-      const value = input.trim();
+  if (data.videoId) {
+    player.src = embedURL(data.videoId);
+  }
 
-      if (/^[a-zA-Z0-9_-]{11}$/.test(value)) return value;
+  if (data.pageTitle) {
+    document.title = data.pageTitle;
+  }
+});
+</script>
 
-      try {
-        const url = new URL(value);
-
-        if (url.searchParams.get("v")) {
-          return url.searchParams.get("v").slice(0, 11);
-        }
-
-        if (url.hostname.includes("youtu.be")) {
-          return url.pathname.replace("/", "").slice(0, 11);
-        }
-
-        if (url.pathname.includes("/live/")) {
-          return url.pathname.split("/live/")[1].split("/")[0].slice(0, 11);
-        }
-
-        if (url.pathname.includes("/embed/")) {
-          return url.pathname.split("/embed/")[1].split("/")[0].slice(0, 11);
-        }
-      } catch (e) {}
-
-      return "";
-    }
-
-    function embedURL(videoId) {
-      return `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&rel=0&modestbranding=1&playsinline=1`;
-    }
-
-    // LISTEN FOR CHANGES FROM FIREBASE
-    onValue(ref(db, "stream/videoId"), (snapshot) => {
-      const videoId = snapshot.val();
-      if (videoId) {
-        player.src = embedURL(videoId);
-      }
-    });
-
-    // OPEN ADMIN PANEL
-    document.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "u") {
-        admin.classList.toggle("show");
-      }
-    });
-
-    closeBtn.addEventListener("click", () => {
-      admin.classList.remove("show");
-    });
-
-    // UPDATE FIREBASE VALUE
-    updateBtn.addEventListener("click", async () => {
-      if (passwordInput.value !== ADMIN_PASSWORD) {
-        alert("Wrong password");
-        return;
-      }
-
-      const videoId = extractID(videoInput.value);
-      if (!videoId) {
-        alert("Invalid YouTube link or video ID");
-        return;
-      }
-
-      await set(ref(db, "stream/videoId"), videoId);
-      alert("Stream updated");
-      admin.classList.remove("show");
-      videoInput.value = "";
-    });
-  </script>
 </body>
 </html>
