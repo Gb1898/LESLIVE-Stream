@@ -38,35 +38,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-  import {
-  ref,
-  push,
-  set,
-  onDisconnect,
-  serverTimestamp,
-  onValue
-} from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
-
-/* UNIQUE NAME PER PAGE TYPE */
-const clientGroup = "display"; // change per page if you want
-
-const connectionsRef = ref(db, `connections/${clientGroup}`);
-const connectedRef = ref(db, ".info/connected");
-
-onValue(connectedRef, async (snap) => {
-  if (snap.val() !== true) return;
-
-  const conRef = push(connectionsRef);
-
-  // queue cleanup FIRST
-  await onDisconnect(conRef).remove();
-
-  // mark connected
-  await set(conRef, {
-    connectedAt: serverTimestamp(),
-    page: location.pathname
-  });
-});
 
 const player = document.getElementById("player");
 
